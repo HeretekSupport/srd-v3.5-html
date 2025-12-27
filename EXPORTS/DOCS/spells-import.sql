@@ -683,10 +683,524 @@ INSERT INTO spell_effects (
 -- UPDATE characters SET size_category_id = original_size WHERE id = caster_id;
 
 -- =====================================================
+-- EXAMPLE 4: ENERGY DRAIN
+-- =====================================================
+-- Source: SRD Necromancy [Evil]
+-- Level: Clr 9, Sor/Wiz 9
+-- Components: V, S
+-- Effect: Ray inflicts 2d4 negative levels (living) or grants temp HP (undead)
+--
+-- Key Features:
+-- - Requires ranged touch attack (uses spell_attack_rolls table)
+-- - Variable negative levels (2d4) via formula
+-- - Conditional effects based on target type (living vs undead)
+-- - Manual save/dismissal pattern (no automatic game-time tracking)
+-- - Uses applies_when for target-type-specific effects
+-- - Demonstrates attack spell + condition pattern
+
+-- Step 1: Insert spell into spells table
+INSERT INTO spells (
+  name,
+  spell_school_id,
+  spell_subschool_id,
+  is_arcane,
+  is_divine,
+  casting_time,
+  range_type,
+  range_formula_id,
+  area_of_effect,
+  duration,
+  allows_spell_resistance,
+  description
+) VALUES (
+  'Energy Drain',
+  (SELECT id FROM spell_schools WHERE name = 'Necromancy'),
+  NULL,  -- No subschool
+  true,  -- Arcane (Sor/Wiz)
+  true,  -- Divine (Cleric)
+  'standard',
+  'close',
+  (SELECT id FROM formulas WHERE formula_text = '25 + 5 * (CASTER_LEVEL / 2)'),  -- 25 ft. + 5 ft./2 levels
+  'Ray',
+  'Instantaneous',
+  true,  -- Allows SR
+  'This spell functions like enervation, except that the creature struck gains 2d4 negative levels. Twenty-four hours after gaining them, the subject must make a Fortitude saving throw (DC = spell''s save DC) for each negative level. If the save succeeds, that negative level is removed. If it fails, the negative level goes away, but one of the subject''s character levels is permanently drained. An undead creature struck by the ray gains 2d4×5 temporary hit points for 1 hour.'
+);
+
+-- Step 2: Link to spell classes and levels
+INSERT INTO spell_class_levels (spell_id, class_id, spell_level) VALUES
+  ((SELECT id FROM spells WHERE name = 'Energy Drain'), (SELECT id FROM classes WHERE name = 'Cleric'), 9),
+  ((SELECT id FROM spells WHERE name = 'Energy Drain'), (SELECT id FROM classes WHERE name = 'Sorcerer'), 9),
+  ((SELECT id FROM spells WHERE name = 'Energy Drain'), (SELECT id FROM classes WHERE name = 'Wizard'), 9);
+
+-- Step 3: Define spell components
+INSERT INTO spell_components (spell_id, component_type_id, component_description) VALUES
+  ((SELECT id FROM spells WHERE name = 'Energy Drain'), (SELECT id FROM spell_component_types WHERE code = 'V'), NULL),
+  ((SELECT id FROM spells WHERE name = 'Energy Drain'), (SELECT id FROM spell_component_types WHERE code = 'S'), NULL);
+
+-- Step 4: Link spell descriptors
+INSERT INTO spell_descriptors_link (spell_id, spell_descriptor_id) VALUES
+  ((SELECT id FROM spells WHERE name = 'Energy Drain'), (SELECT id FROM spell_descriptors WHERE name = 'Evil'));
+
+-- Step 5: Define ranged touch attack requirement
+-- This spell requires a ranged touch attack to hit before applying effects
+INSERT INTO spell_attack_rolls (
+  spell_id,
+  throw_id,
+  attack_type
+) VALUES (
+  (SELECT id FROM spells WHERE name = 'Energy Drain'),
+  (SELECT id FROM throws WHERE name = 'Ranged Touch Attack'),
+  'ranged_touch'
+);
+
+-- Step 6: Create "Negative Levels" condition if not already exists
+-- This condition represents the mechanical penalty of negative levels
+INSERT INTO conditions (
+  name,
+  condition_category,
+  is_supernatural,
+  can_stack,
+  description
+) VALUES (
+  'Negative Levels',
+  'debuff',
+  true,
+  true,  -- Multiple negative levels can stack
+  'For each negative level possessed, a creature takes a cumulative -1 penalty on all ability checks, attack rolls, combat maneuver checks, Combat Maneuver Defense, saving throws, and skill checks. In addition, the creature reduces its current and total hit points by 5 for each negative level it possesses. The creature is also treated as one level lower for the purpose of level-dependent variables (such as spellcasting) for each negative level possessed. Spellcasters do not lose any prepared spells or slots as a result of negative levels. If a creature''s negative levels equal or exceed its total Hit Dice, it dies.'
+);
+
+-- Step 7: Link condition mechanical effects (stat penalties)
+-- Each negative level imposes -1 to various rolls
+INSERT INTO condition_stat_effects (
+  condition_id,
+  stat_effect_type,
+  ability_score_id,
+  value_formula_id,
+  duration_type
+) VALUES
+  -- -1 penalty to attack rolls
+  ((SELECT id FROM conditions WHERE name = 'Negative Levels'),
+   'attack_modifier',
+   NULL,
+   (SELECT id FROM formulas WHERE formula_text = '-1'),
+   'while_active'),
+
+  -- -1 penalty to saving throws
+  ((SELECT id FROM conditions WHERE name = 'Negative Levels'),
+   'saving_throw_modifier',
+   NULL,
+   (SELECT id FROM formulas WHERE formula_text = '-1'),
+   'while_active'),
+
+  -- -1 penalty to skill checks
+  ((SELECT id FROM conditions WHERE name = 'Negative Levels'),
+   'skill_modifier',
+   NULL,
+   (SELECT id FROM formulas WHERE formula_text = '-1'),
+   'while_active'),
+
+  -- -5 current/max hit points
+  ((SELECT id FROM conditions WHERE name = 'Negative Levels'),
+   'hp_modifier',
+   NULL,
+   (SELECT id FROM formulas WHERE formula_text = '-5'),
+   'while_active');
+
+-- Step 8: Define variable negative levels granted to LIVING creatures
+-- Uses spell_granted_conditions with variable amount (2d4)
+INSERT INTO spell_granted_conditions (
+  spell_id,
+  condition_id,
+  duration_type,
+  duration_formula_id,
+  allows_save,
+  variable_amount,
+  amount_formula_id,
+  applies_when
+) VALUES (
+  (SELECT id FROM spells WHERE name = 'Energy Drain'),
+  (SELECT id FROM conditions WHERE name = 'Negative Levels'),
+  'permanent',  -- Tracked as permanent until manually dismissed
+  NULL,         -- No formula needed for permanent
+  true,         -- Fort save after 24 hours (handled manually)
+  true,         -- Amount varies per casting
+  (SELECT id FROM formulas WHERE formula_text = '2d4'),  -- 2d4 negative levels
+  'target_is_living'  -- Only applies to living creatures
+);
+
+-- Step 9: Create temporary hit points effect for UNDEAD targets
+-- Undead creatures gain temporary HP instead of negative levels
+INSERT INTO effects (
+  name,
+  effect_type,
+  is_beneficial,
+  is_magical,
+  description
+) VALUES (
+  'Energy Drain - Undead Temp HP',
+  'hp_modifier',
+  true,  -- Beneficial for undead
+  true,
+  'Undead creature gains 2d4×5 temporary hit points for 1 hour'
+);
+
+-- Link to hp_modifier_effects
+INSERT INTO hp_modifier_effects (
+  effect_id,
+  modifier_type,
+  hp_change_formula_id,
+  is_temporary,
+  duration_type
+) VALUES (
+  (SELECT id FROM effects WHERE name = 'Energy Drain - Undead Temp HP'),
+  'temp_hp',
+  (SELECT id FROM formulas WHERE formula_text = '2d4 * 5'),
+  true,  -- Temporary hit points
+  'hours'
+);
+
+-- Step 10: Link undead temp HP effect to spell (conditional)
+INSERT INTO spell_effects (
+  spell_id,
+  caster_level,
+  effect_id,
+  duration_value,
+  applies_when
+) VALUES (
+  (SELECT id FROM spells WHERE name = 'Energy Drain'),
+  1,  -- Same for all caster levels
+  (SELECT id FROM effects WHERE name = 'Energy Drain - Undead Temp HP'),
+  1,  -- 1 hour duration
+  'target_is_undead'  -- Only applies when target is undead
+);
+
+-- Step 11: Define Fortitude save (for permanent level drain)
+-- Save occurs 24 hours after gaining negative levels (handled manually)
+INSERT INTO spell_saves (
+  spell_id,
+  throw_id,
+  save_dc_formula_id,
+  save_result_type,
+  effect_on_failed_save_id,
+  effect_on_successful_save_id
+) VALUES (
+  (SELECT id FROM spells WHERE name = 'Energy Drain'),
+  (SELECT id FROM throws WHERE name = 'Fortitude Save'),
+  (SELECT id FROM formulas WHERE formula_text = '10 + SPELL_LEVEL + ABILITY_MODIFIER'),
+  'partial',  -- Save is made 24 hours later, per negative level
+  NULL,       -- Failed save = level permanently drained (manual tracking)
+  NULL        -- Successful save = negative level removed (manual dismissal)
+);
+
+-- =====================================================
+-- RUNTIME EXAMPLE: ENERGY DRAIN
+-- =====================================================
+--
+-- When cast at runtime (Phase 3):
+--
+-- Step 1: Make ranged touch attack
+--
+-- SELECT make_attack_roll(
+--   caster_id,
+--   'ranged_touch',
+--   target_ac
+-- ) AS hits;
+--
+-- If attack misses, spell has no effect.
+--
+-- Step 2: If attack hits, check spell resistance
+--
+-- SELECT check_spell_resistance(
+--   target_id,
+--   spell_id,
+--   caster_level
+-- ) AS resisted;
+--
+-- If spell is resisted, no effect.
+--
+-- Step 3: If attack hits and SR fails, determine target type and apply effect
+--
+-- -- Check if target is undead
+-- SELECT
+--   CASE
+--     WHEN mt.creature_type_id = (SELECT id FROM creature_types WHERE name = 'Undead')
+--     THEN 'undead'
+--     ELSE 'living'
+--   END AS target_type
+-- FROM characters c
+-- LEFT JOIN monster_templates mt ON c.monster_template_id = mt.id
+-- WHERE c.id = target_id;
+--
+-- Step 4a: If target is LIVING, apply negative levels
+--
+-- -- Roll 2d4 for number of negative levels
+-- SELECT floor(random() * 4 + 1)::int + floor(random() * 4 + 1)::int AS negative_levels_count;
+--
+-- -- Apply each negative level as a separate condition instance (stacking)
+-- INSERT INTO character_active_conditions (
+--   character_id,
+--   condition_id,
+--   source_type,
+--   source_id,
+--   stacks_count,
+--   notes
+-- )
+-- SELECT
+--   target_id,
+--   (SELECT id FROM conditions WHERE name = 'Negative Levels'),
+--   'spell',
+--   spell_instance_id,
+--   negative_levels_count,  -- Number of negative levels to apply
+--   'Energy Drain - Fort save required after 24 game hours (manual tracking)'
+-- ;
+--
+-- -- MANUAL TRACKING REQUIRED:
+-- -- Players track 24 in-game hours
+-- -- After 24 hours, for each negative level:
+-- --   - Roll Fort save (DC = 10 + spell level 9 + caster ability modifier)
+-- --   - If SUCCEEDS: Manually dismiss that negative level from character_active_conditions
+-- --   - If FAILS: Manually note permanent level drain, then dismiss negative level
+-- --
+-- -- No automatic game-time tracking in database - players handle timing
+--
+-- Step 4b: If target is UNDEAD, apply temporary hit points
+--
+-- -- Roll 2d4×5 for temporary HP
+-- SELECT (floor(random() * 4 + 1)::int + floor(random() * 4 + 1)::int) * 5 AS temp_hp;
+--
+-- -- Apply temporary HP
+-- INSERT INTO character_active_effects (
+--   character_id,
+--   effect_id,
+--   source_type,
+--   source_id,
+--   duration_remaining_hours,
+--   value_override
+-- ) VALUES (
+--   target_id,
+--   (SELECT id FROM effects WHERE name = 'Energy Drain - Undead Temp HP'),
+--   'spell',
+--   spell_instance_id,
+--   1,  -- 1 hour duration
+--   temp_hp
+-- );
+--
+-- -- Temporary HP automatically expire after 1 hour (no manual tracking needed)
+--
+-- Step 5: Permanent Level Drain (when Fort save fails after 24 hours)
+--
+-- -- This is tracked manually by players
+-- -- When a Fort save fails, the player notes:
+-- --   1. Remove the negative level condition
+-- --   2. Record permanent level drain in character notes/history
+-- --   3. Recalculate character's effective level for all purposes
+-- --
+-- -- No database table needed for permanent level drain - it's part of character progression tracking
+-- -- Similar to how you wouldn't create a special table for "permanently dead characters"
+
+-- =====================================================
+-- EXAMPLE 5: FIREBALL
+-- =====================================================
+-- Source: SRD Evocation [Fire]
+-- Level: Sor/Wiz 3
+-- Components: V, S, M (a tiny ball of bat guano and sulfur)
+-- Effect: 20-ft radius spread deals 1d6 fire damage per caster level (max 10d6)
+--
+-- Key Features:
+-- - Area damage spell (affects all creatures in radius)
+-- - Variable damage based on caster level (1d6 per level, max 10d6)
+-- - Fire damage type (links to damage_types reference table)
+-- - Reflex save for half damage (save_result_type = 'half')
+-- - Material component with description
+-- - Demonstrates basic "blasting spell" pattern
+
+-- Step 1: Insert spell into spells table
+INSERT INTO spells (
+  name,
+  spell_school_id,
+  spell_subschool_id,
+  is_arcane,
+  is_divine,
+  casting_time,
+  range_type,
+  range_formula_id,
+  area_of_effect,
+  duration,
+  allows_spell_resistance,
+  description
+) VALUES (
+  'Fireball',
+  (SELECT id FROM spell_schools WHERE name = 'Evocation'),
+  NULL,  -- No subschool
+  true,  -- Arcane (Sor/Wiz)
+  false, -- Not divine
+  'standard',
+  'long',
+  (SELECT id FROM formulas WHERE formula_text = '400 + 40 * CASTER_LEVEL'),  -- 400 ft. + 40 ft./level
+  '20-ft.-radius spread',
+  'Instantaneous',
+  true,  -- Allows SR
+  'A fireball spell is an explosion of flame that detonates with a low roar and deals 1d6 points of fire damage per caster level (maximum 10d6) to every creature within the area. Unattended objects also take this damage. The explosion creates almost no pressure. You point your finger and determine the range (distance and height) at which the fireball is to burst. A glowing, pea-sized bead streaks from the pointing digit and, unless it impacts upon a material body or solid barrier prior to attaining the prescribed range, blossoms into the fireball at that point. (An early impact results in an early detonation.) If you attempt to send the bead through a narrow passage, such as through an arrow slit, you must "hit" the opening with a ranged touch attack, or else the bead strikes the barrier and detonates prematurely. The fireball sets fire to combustibles and damages objects in the area. It can melt metals with low melting points, such as lead, gold, copper, silver, and bronze. If the damage caused to an interposing barrier shatters or breaks through it, the fireball may continue beyond the barrier if the area permits; otherwise it stops at the barrier just as any other spell effect does.'
+);
+
+-- Step 2: Link to spell classes and levels
+INSERT INTO spell_class_levels (spell_id, class_id, spell_level) VALUES
+  ((SELECT id FROM spells WHERE name = 'Fireball'), (SELECT id FROM classes WHERE name = 'Sorcerer'), 3),
+  ((SELECT id FROM spells WHERE name = 'Fireball'), (SELECT id FROM classes WHERE name = 'Wizard'), 3);
+
+-- Step 3: Define spell components
+INSERT INTO spell_components (spell_id, component_type_id, component_description) VALUES
+  ((SELECT id FROM spells WHERE name = 'Fireball'), (SELECT id FROM spell_component_types WHERE code = 'V'), NULL),
+  ((SELECT id FROM spells WHERE name = 'Fireball'), (SELECT id FROM spell_component_types WHERE code = 'S'), NULL),
+  ((SELECT id FROM spells WHERE name = 'Fireball'), (SELECT id FROM spell_component_types WHERE code = 'M'), 'a tiny ball of bat guano and sulfur');
+
+-- Step 4: Link spell descriptors
+INSERT INTO spell_descriptors_link (spell_id, spell_descriptor_id) VALUES
+  ((SELECT id FROM spells WHERE name = 'Fireball'), (SELECT id FROM spell_descriptors WHERE name = 'Fire'));
+
+-- Step 5: Create fire damage effect
+-- This is a damage effect that scales with caster level (1d6 per level, max 10d6)
+INSERT INTO effects (
+  name,
+  effect_type,
+  is_beneficial,
+  is_magical,
+  description
+) VALUES (
+  'Fireball - Fire Damage',
+  'damage',
+  false,  -- Not beneficial
+  true,   -- Magical
+  'Deals 1d6 fire damage per caster level (maximum 10d6) to all creatures in 20-ft radius'
+);
+
+-- Step 6: Link to damage_effects with fire damage type
+INSERT INTO damage_effects (
+  effect_id,
+  damage_formula_id,
+  damage_type_id
+) VALUES (
+  (SELECT id FROM effects WHERE name = 'Fireball - Fire Damage'),
+  (SELECT id FROM formulas WHERE formula_text = '1d6 * MIN(CASTER_LEVEL, 10)'),  -- 1d6 per level, max 10d6
+  (SELECT id FROM damage_types WHERE name = 'Fire')
+);
+
+-- Step 7: Link damage effect to spell
+-- All caster levels use the same effect (formula handles scaling)
+INSERT INTO spell_effects (
+  spell_id,
+  caster_level,
+  effect_id,
+  applies_when
+) VALUES (
+  (SELECT id FROM spells WHERE name = 'Fireball'),
+  1,    -- Same effect for all caster levels (formula scales it)
+  (SELECT id FROM effects WHERE name = 'Fireball - Fire Damage'),
+  NULL  -- Always applies
+);
+
+-- Step 8: Define Reflex save for half damage
+INSERT INTO spell_saves (
+  spell_id,
+  throw_id,
+  save_dc_formula_id,
+  save_result_type,
+  effect_on_failed_save_id,
+  effect_on_successful_save_id
+) VALUES (
+  (SELECT id FROM spells WHERE name = 'Fireball'),
+  (SELECT id FROM throws WHERE name = 'Reflex Save'),
+  (SELECT id FROM formulas WHERE formula_text = '10 + SPELL_LEVEL + ABILITY_MODIFIER'),
+  'half',  -- Successful save reduces damage by half
+  NULL,    -- Failed save = full damage (from spell_effects)
+  NULL     -- Successful save = half damage (calculated at runtime)
+);
+
+-- =====================================================
+-- RUNTIME EXAMPLE: FIREBALL
+-- =====================================================
+--
+-- When cast at runtime (Phase 3):
+--
+-- Step 1: Caster targets a point within range (400 ft + 40 ft/level)
+--
+-- Step 2: Get all creatures within 20-ft radius of detonation point
+--
+-- SELECT c.id, c.name
+-- FROM characters c
+-- WHERE distance_from_point(c.position, detonation_point) <= 20;
+--
+-- Step 3: For each creature in area, check spell resistance
+--
+-- SELECT check_spell_resistance(
+--   creature_id,
+--   (SELECT id FROM spells WHERE name = 'Fireball'),
+--   caster_level
+-- ) AS resisted;
+--
+-- If spell is resisted, creature takes no damage. Continue to next creature.
+--
+-- Step 4: For each creature not resisting, roll Reflex save
+--
+-- SELECT
+--   c.id,
+--   c.name,
+--   make_saving_throw(
+--     c.id,
+--     'Reflex',
+--     10 + 3 + caster_ability_modifier  -- DC = 10 + spell level 3 + caster's INT/CHA mod
+--   ) AS save_succeeded
+-- FROM characters c
+-- WHERE c.id IN (creatures_in_area);
+--
+-- Step 5: Calculate and apply damage
+--
+-- -- Roll damage once for the spell
+-- SELECT floor(random() * 6 + 1)::int AS d6_result
+-- FROM generate_series(1, LEAST(caster_level, 10));
+--
+-- -- Example: 5th level caster rolls 5d6 = 18 damage
+-- WITH damage_roll AS (
+--   SELECT 18 AS total_damage
+-- )
+-- -- Apply damage to each creature based on save result
+-- INSERT INTO character_damage_log (character_id, damage_amount, damage_type_id, source_type, source_id)
+-- SELECT
+--   c.id,
+--   CASE
+--     WHEN save_succeeded THEN (total_damage / 2)::int  -- Half damage on successful save
+--     ELSE total_damage                                  -- Full damage on failed save
+--   END AS damage,
+--   (SELECT id FROM damage_types WHERE name = 'Fire'),
+--   'spell',
+--   spell_instance_id
+-- FROM characters c
+-- CROSS JOIN damage_roll
+-- WHERE c.id IN (creatures_in_area_not_resisting);
+--
+-- -- Update current HP
+-- UPDATE characters c
+-- SET current_hp = current_hp - damage_taken
+-- WHERE c.id IN (creatures_in_area_not_resisting);
+--
+-- Step 6: Handle fire ignition effects (narrative)
+--
+-- -- The spell sets fire to combustibles and can melt low-melting-point metals
+-- -- This is handled narratively by DM, not tracked in database
+-- -- Examples:
+-- --   - Wooden structures catch fire
+-- --   - Gold/silver items may melt if unattended
+-- --   - Scrolls/books destroyed
+--
+-- Note: Evasion ability (if creature has it) allows NO damage on successful save
+-- This is checked at runtime by examining character feats/class abilities
+
+-- =====================================================
 -- ADDITIONAL NOTES
 -- =====================================================
 
--- These examples demonstrate three major spell patterns:
+-- These examples demonstrate five major spell patterns:
 --
 -- 1. CONDITION-GRANTING SPELLS (Daze Monster):
 --    - Use spell_granted_conditions
@@ -708,6 +1222,23 @@ INSERT INTO spell_effects (
 --    - Property transfer flags control what caster gains/doesn't gain
 --    - Reuses entire monster catalog instead of enumerating forms
 --    - Combines structured effects (Disguise bonus) with template selection
+--
+-- 4. ATTACK + VARIABLE CONDITION SPELLS (Energy Drain):
+--    - Use spell_attack_rolls for touch attack requirement
+--    - Use spell_granted_conditions with variable_amount and amount_formula_id
+--    - Use applies_when for target-type-specific effects (living vs undead)
+--    - Manual save/dismissal pattern for complex timing (24-hour delay)
+--    - Demonstrates conditional effect branching (negative levels OR temp HP)
+--    - Stacking conditions pattern (multiple negative levels)
+--
+-- 5. AREA DAMAGE SPELLS (Fireball):
+--    - Use damage_effects with damage_type_id for typed damage
+--    - Variable damage via formula (1d6 * MIN(CASTER_LEVEL, 10))
+--    - Reflex save for half damage (save_result_type = 'half')
+--    - Area of effect (affects all creatures in radius)
+--    - Material component with description
+--    - Demonstrates basic "blasting spell" pattern
+--    - Damage rolled once, applied to all targets (modified by individual saves)
 
 -- =====================================================
 -- END OF SPELL IMPORT EXAMPLES
