@@ -1,7 +1,7 @@
 -- ============================================================================
--- D&D 3.5 SRD FEATS IMPORT - PREVIEW (Feats 1-11)
+-- D&D 3.5 SRD FEATS IMPORT - PREVIEW (Feats 1-16)
 -- ============================================================================
--- This is a PREVIEW showing the import strategy for the first 11 feats
+-- This is a PREVIEW showing the import strategy for the first 16 feats
 -- ============================================================================
 
 SET search_path TO pnpo_3_5_dev;
@@ -86,7 +86,10 @@ VALUES
 
     -- Athletic feat skills
     ('Climb_check', (SELECT id FROM pnpo_3_5_dev.effect_target_categories WHERE name = 'skill_checks'), 'Climb skill check modifier'),
-    ('Swim_check', (SELECT id FROM pnpo_3_5_dev.effect_target_categories WHERE name = 'skill_checks'), 'Swim skill check modifier')
+    ('Swim_check', (SELECT id FROM pnpo_3_5_dev.effect_target_categories WHERE name = 'skill_checks'), 'Swim skill check modifier'),
+
+    -- Combat Casting feat skill
+    ('Concentration_check', (SELECT id FROM pnpo_3_5_dev.effect_target_categories WHERE name = 'skill_checks'), 'Concentration skill check modifier')
 ON CONFLICT (name) DO NOTHING;
 
 
@@ -625,6 +628,246 @@ VALUES (
 -- 2. Immunity to invisible melee penalties
 -- 3. Speed penalty reduction
 -- (These would be created as narrative_effects or custom effect types)
+
+
+-- ============================================================================
+-- FEATS 12-16: ADDITIONAL FEAT EXAMPLES
+-- ============================================================================
+
+
+-- ============================================================================
+-- FEAT 12: BREW POTION [Item Creation]
+-- Prerequisite: Caster level 3rd
+-- Benefit: Create potions of spells you know
+-- ============================================================================
+
+INSERT INTO pnpo_3_5_dev.feats (name, feat_type, description, benefit, choice_required, multiples_allowed)
+VALUES (
+    'Brew Potion',
+    'item_creation',
+    'You can create magic potions.',
+    'You can create a potion of any 3rd-level or lower spell that you know and that targets one or more creatures. Brewing a potion takes one day. When you create a potion, you set the caster level, which must be sufficient to cast the spell in question and no higher than your own level. The base price of a potion is its spell level x its caster level x 50 gp. To brew a potion, you must spend 1/25 of this base price in XP and use up raw materials costing one half this base price.',
+    false,
+    false
+);
+
+-- Create prerequisite group for caster level requirement
+INSERT INTO pnpo_3_5_dev.prerequisite_groups (name, join_type, description)
+VALUES (
+    'Brew Potion Prerequisites',
+    'AND',
+    'Requires caster level 3rd'
+);
+
+-- Note: Caster level prerequisites would use caster_level_requirement_prerequisites table
+-- This would be added when that system is fully implemented
+-- For now, we're documenting the requirement in the prerequisite group description
+
+-- Create special ability for potion crafting
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
+VALUES (
+    'Brew Potion',
+    'extraordinary',
+    false,
+    'Can create magic potions of spells known (3rd level or lower)',
+    'feat'
+);
+
+-- Link ability to feat
+INSERT INTO pnpo_3_5_dev.feat_granted_abilities (feat_id, special_ability_id, notes)
+VALUES (
+    (SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Brew Potion'),
+    (SELECT id FROM pnpo_3_5_dev.special_abilities WHERE name = 'Brew Potion'),
+    'Item creation feat - see PHB for full crafting rules'
+);
+
+
+-- ============================================================================
+-- FEAT 13: CLEAVE [General]
+-- Prerequisites: Str 13, Power Attack
+-- Benefit: Extra attack after dropping foe
+-- Special: Fighter bonus feat
+-- ============================================================================
+
+INSERT INTO pnpo_3_5_dev.feats (name, feat_type, description, benefit, special, choice_required, multiples_allowed)
+VALUES (
+    'Cleave',
+    'general',
+    'You can follow through with powerful blows.',
+    'If you deal a creature enough damage to make it drop (typically by dropping it to below 0 hit points or killing it), you get an immediate, extra melee attack against another creature within reach. You cannot take a 5-foot step before making this extra attack. The extra attack is with the same weapon and at the same bonus as the attack that dropped the previous creature. You can use this ability once per round.',
+    'A fighter may select Cleave as one of his fighter bonus feats.',
+    false,
+    false
+);
+
+-- Create prerequisite group (AND group - must have both STR 13 and Power Attack)
+INSERT INTO pnpo_3_5_dev.prerequisite_groups (name, join_type, description)
+VALUES (
+    'Cleave Prerequisites',
+    'AND',
+    'Requires Str 13 and Power Attack feat'
+);
+
+-- Note: This requires Power Attack feat which doesn't exist yet in this preview
+-- Also requires ability_requirement_prerequisites for STR 13
+-- These would be added when those feats/systems are implemented
+
+-- Create special ability for Cleave mechanic
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
+VALUES (
+    'Cleave',
+    'extraordinary',
+    false,
+    'Extra melee attack after dropping a foe (once per round)',
+    'feat'
+);
+
+-- Link ability to feat
+INSERT INTO pnpo_3_5_dev.feat_granted_abilities (feat_id, special_ability_id, notes)
+VALUES (
+    (SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Cleave'),
+    (SELECT id FROM pnpo_3_5_dev.special_abilities WHERE name = 'Cleave'),
+    'Fighter bonus feat option'
+);
+
+
+-- ============================================================================
+-- FEAT 14: COMBAT CASTING [General]
+-- Prerequisite: None
+-- Benefit: +4 bonus on Concentration checks to cast defensively
+-- ============================================================================
+
+INSERT INTO pnpo_3_5_dev.feats (name, feat_type, description, benefit, choice_required, multiples_allowed)
+VALUES (
+    'Combat Casting',
+    'general',
+    'You are adept at casting spells in combat.',
+    'You get a +4 bonus on Concentration checks made to cast a spell or use a spell-like ability while on the defensive or while you are grappling or pinned.',
+    false,
+    false
+);
+
+-- Create effect for Concentration bonus
+INSERT INTO pnpo_3_5_dev.effects (name, effect_type, is_beneficial, is_magical, stacks_with_self, description)
+VALUES (
+    'Combat Casting: Concentration Bonus',
+    'stat',
+    true,
+    false,
+    false,
+    '+4 bonus to Concentration checks when casting defensively or grappled'
+);
+
+-- Note: This requires Concentration_check effect_target which should already exist
+-- from our skill checks in the dependencies section
+INSERT INTO pnpo_3_5_dev.stat_effects (effect_id, effect_target_id, change_type, value, bonus_type_id)
+VALUES (
+    (SELECT id FROM pnpo_3_5_dev.effects WHERE name = 'Combat Casting: Concentration Bonus'),
+    (SELECT id FROM pnpo_3_5_dev.effect_targets WHERE name = 'Concentration_check'),
+    'additive',
+    4,
+    (SELECT id FROM pnpo_3_5_dev.bonus_types WHERE name = 'competence')
+);
+
+-- Link effect to feat with conditional application
+INSERT INTO pnpo_3_5_dev.feat_effects (feat_id, effect_id, applies_when)
+VALUES (
+    (SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Combat Casting'),
+    (SELECT id FROM pnpo_3_5_dev.effects WHERE name = 'Combat Casting: Concentration Bonus'),
+    'while casting defensively, grappling, or pinned'
+);
+
+
+-- ============================================================================
+-- FEAT 15: COMBAT EXPERTISE [General]
+-- Prerequisite: Int 13
+-- Benefit: Trade attack bonus for AC bonus
+-- Special: Fighter bonus feat
+-- ============================================================================
+
+INSERT INTO pnpo_3_5_dev.feats (name, feat_type, description, benefit, normal, special, choice_required, multiples_allowed)
+VALUES (
+    'Combat Expertise',
+    'general',
+    'You are trained at using your combat skill for defense as well as offense.',
+    'When you use the attack action or the full attack action in melee, you can take a penalty of as much as –5 on your attack roll and add the same number (+5 or less) as a dodge bonus to your Armor Class. This number may not exceed your base attack bonus. The changes to attack rolls and Armor Class last until your next action.',
+    'A character without the Combat Expertise feat can fight defensively while using the attack or full attack action to take a –4 penalty on attack rolls and gain a +2 dodge bonus to Armor Class.',
+    'A fighter may select Combat Expertise as one of his fighter bonus feats.',
+    false,
+    false
+);
+
+-- Create prerequisite group for INT 13
+INSERT INTO pnpo_3_5_dev.prerequisite_groups (name, join_type, description)
+VALUES (
+    'Combat Expertise Prerequisites',
+    'AND',
+    'Requires Int 13'
+);
+
+-- Note: Requires ability_requirement_prerequisites for INT 13
+-- This would be added when that system is implemented
+
+-- Create special ability for Combat Expertise tactical option
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
+VALUES (
+    'Combat Expertise',
+    'extraordinary',
+    true,
+    'Trade up to -5 attack penalty for equal dodge bonus to AC (max = BAB)',
+    'feat'
+);
+
+-- Link ability to feat
+INSERT INTO pnpo_3_5_dev.feat_granted_abilities (feat_id, special_ability_id, notes)
+VALUES (
+    (SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Combat Expertise'),
+    (SELECT id FROM pnpo_3_5_dev.special_abilities WHERE name = 'Combat Expertise'),
+    'Fighter bonus feat option - activated tactical option'
+);
+
+
+-- ============================================================================
+-- FEAT 16: COMBAT REFLEXES [General]
+-- Prerequisite: None
+-- Benefit: Additional attacks of opportunity, can make AoO while flat-footed
+-- Special: Fighter and monk bonus feat
+-- ============================================================================
+
+INSERT INTO pnpo_3_5_dev.feats (name, feat_type, description, benefit, normal, special, choice_required, multiples_allowed)
+VALUES (
+    'Combat Reflexes',
+    'general',
+    'You can respond quickly and repeatedly to opponents who let their defenses down.',
+    'You may make a number of additional attacks of opportunity equal to your Dexterity bonus. With this feat, you may also make attacks of opportunity while flat-footed.',
+    'A character without this feat can make only one attack of opportunity per round and can''t make attacks of opportunity while flat-footed.',
+    'The Combat Reflexes feat does not allow a rogue to use her opportunist ability more than once per round. A fighter may select Combat Reflexes as one of his fighter bonus feats. A monk may select Combat Reflexes as a bonus feat at 2nd level.',
+    false,
+    false
+);
+
+-- Create special ability for Combat Reflexes
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
+VALUES (
+    'Combat Reflexes',
+    'extraordinary',
+    false,
+    'Extra attacks of opportunity = DEX modifier; can make AoO while flat-footed',
+    'feat'
+);
+
+-- Link ability to feat
+INSERT INTO pnpo_3_5_dev.feat_granted_abilities (feat_id, special_ability_id, notes)
+VALUES (
+    (SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Combat Reflexes'),
+    (SELECT id FROM pnpo_3_5_dev.special_abilities WHERE name = 'Combat Reflexes'),
+    'Fighter/monk bonus feat option'
+);
+
+
+-- ============================================================================
+-- END OF FEATS 12-16 SECTION
+-- ============================================================================
 
 
 COMMIT;
