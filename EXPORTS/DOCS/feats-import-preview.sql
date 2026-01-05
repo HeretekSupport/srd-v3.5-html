@@ -173,8 +173,8 @@ VALUES ('Armor Proficiency (Light)', 'general', 'You are proficient with light a
         'All characters except wizards, sorcerers, and monks automatically have Armor Proficiency (light) as a bonus feat. They need not select it.',
         false, NULL, false);
 
-INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
-VALUES ('Light Armor Proficiency', 'extraordinary', false, 'Proficient with light armor - armor check penalty only applies to specific skills', 'feat');
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, activation_type, description, source_category)
+VALUES ('Light Armor Proficiency', 'extraordinary', false, 'passive', 'Proficient with light armor - armor check penalty only applies to specific skills', 'feat');
 
 INSERT INTO pnpo_3_5_dev.feat_granted_abilities (feat_id, special_ability_id, notes)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Armor Proficiency (Light)'),
@@ -200,15 +200,15 @@ new_prereq AS (
     RETURNING id
 )
 INSERT INTO pnpo_3_5_dev.prerequisite_conditions (parent_group_id, condition_type, feat_prerequisite_id)
-SELECT new_group.id, 'feat_requirement', new_prereq.id
+SELECT new_group.id, 'feat', new_prereq.id
 FROM new_group, new_prereq;
 
 INSERT INTO pnpo_3_5_dev.feat_prerequisites (feat_id, prerequisite_group_id)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Armor Proficiency (Medium)'),
         (SELECT id FROM pnpo_3_5_dev.prerequisite_groups WHERE description = 'Armor Proficiency (Medium): Requires Light armor proficiency'));
 
-INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
-VALUES ('Medium Armor Proficiency', 'extraordinary', false, 'Proficient with medium armor - armor check penalty only applies to specific skills', 'feat');
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, activation_type, description, source_category)
+VALUES ('Medium Armor Proficiency', 'extraordinary', false, 'passive', 'Proficient with medium armor - armor check penalty only applies to specific skills', 'feat');
 
 INSERT INTO pnpo_3_5_dev.feat_granted_abilities (feat_id, special_ability_id, notes)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Armor Proficiency (Medium)'),
@@ -240,20 +240,20 @@ new_prereq_medium AS (
 ),
 condition1 AS (
     INSERT INTO pnpo_3_5_dev.prerequisite_conditions (parent_group_id, condition_type, feat_prerequisite_id, sequence_order)
-    SELECT new_group.id, 'feat_requirement', new_prereq_light.id, 0
+    SELECT new_group.id, 'feat', new_prereq_light.id, 0
     FROM new_group, new_prereq_light
     RETURNING parent_group_id
 )
 INSERT INTO pnpo_3_5_dev.prerequisite_conditions (parent_group_id, condition_type, feat_prerequisite_id, sequence_order)
-SELECT new_group.id, 'feat_requirement', new_prereq_medium.id, 1
+SELECT new_group.id, 'feat', new_prereq_medium.id, 1
 FROM new_group, new_prereq_medium;
 
 INSERT INTO pnpo_3_5_dev.feat_prerequisites (feat_id, prerequisite_group_id)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Armor Proficiency (Heavy)'),
         (SELECT id FROM pnpo_3_5_dev.prerequisite_groups WHERE description = 'Armor Proficiency (Heavy): Requires both Light and Medium armor proficiency'));
 
-INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
-VALUES ('Heavy Armor Proficiency', 'extraordinary', false, 'Proficient with heavy armor - armor check penalty only applies to specific skills', 'feat');
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, activation_type, description, source_category)
+VALUES ('Heavy Armor Proficiency', 'extraordinary', false, 'passive', 'Proficient with heavy armor - armor check penalty only applies to specific skills', 'feat');
 
 INSERT INTO pnpo_3_5_dev.feat_granted_abilities (feat_id, special_ability_id, notes)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Armor Proficiency (Heavy)'),
@@ -316,7 +316,7 @@ new_prereq AS (
     RETURNING id
 )
 INSERT INTO pnpo_3_5_dev.prerequisite_conditions (parent_group_id, condition_type, feat_prerequisite_id)
-SELECT new_group.id, 'feat_requirement', new_prereq.id
+SELECT new_group.id, 'feat', new_prereq.id
 FROM new_group, new_prereq;
 
 INSERT INTO pnpo_3_5_dev.feat_prerequisites (feat_id, prerequisite_group_id)
@@ -355,8 +355,8 @@ VALUES ('Blind-Fight', 'general', 'You are skilled at fighting in conditions wit
         'The Blind-Fight feat is of no use against a character who is the subject of a blink spell. A fighter may select Blind-Fight as one of his fighter bonus feats.',
         false, NULL, false);
 
-INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
-VALUES ('Blind-Fight', 'extraordinary', false,
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, activation_type, description, source_category)
+VALUES ('Blind-Fight', 'extraordinary', false, 'passive',
         'Reroll concealment miss chance once; no penalties vs invisible attackers in melee; reduced speed penalty in darkness',
         'feat');
 
@@ -394,8 +394,8 @@ INSERT INTO pnpo_3_5_dev.feat_prerequisites (feat_id, prerequisite_group_id)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Brew Potion'),
         (SELECT id FROM pnpo_3_5_dev.prerequisite_groups WHERE description = 'Brew Potion: Requires caster level 3rd'));
 
-INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
-VALUES ('Brew Potion', 'extraordinary', false, 'Can create magic potions of spells known (3rd level or lower)', 'feat');
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, activation_type, description, source_category)
+VALUES ('Brew Potion', 'extraordinary', false, 'passive', 'Can create magic potions of spells known (3rd level or lower)', 'feat');
 
 INSERT INTO pnpo_3_5_dev.feat_granted_abilities (feat_id, special_ability_id, notes)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Brew Potion'),
@@ -433,8 +433,8 @@ INSERT INTO pnpo_3_5_dev.feat_prerequisites (feat_id, prerequisite_group_id)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Power Attack'),
         (SELECT id FROM pnpo_3_5_dev.prerequisite_groups WHERE description = 'Power Attack: Requires Str 13'));
 
-INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
-VALUES ('Power Attack', 'extraordinary', true,
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, activation_type, description, source_category)
+VALUES ('Power Attack', 'extraordinary', true, 'free',
         'Trade attack penalty for equal damage bonus (max = BAB). Activated tactical option.',
         'feat');
 
@@ -477,15 +477,15 @@ condition1 AS (
     RETURNING parent_group_id
 )
 INSERT INTO pnpo_3_5_dev.prerequisite_conditions (parent_group_id, condition_type, feat_prerequisite_id, sequence_order)
-SELECT new_group.id, 'feat_requirement', new_feat_prereq.id, 1
+SELECT new_group.id, 'feat', new_feat_prereq.id, 1
 FROM new_group, new_feat_prereq;
 
 INSERT INTO pnpo_3_5_dev.feat_prerequisites (feat_id, prerequisite_group_id)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Cleave'),
         (SELECT id FROM pnpo_3_5_dev.prerequisite_groups WHERE description = 'Cleave: Requires Str 13 and Power Attack feat'));
 
-INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
-VALUES ('Cleave', 'extraordinary', false, 'Extra melee attack after dropping a foe (once per round)', 'feat');
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, activation_type, description, source_category)
+VALUES ('Cleave', 'extraordinary', false, 'passive', 'Extra melee attack after dropping a foe (once per round)', 'feat');
 
 INSERT INTO pnpo_3_5_dev.feat_granted_abilities (feat_id, special_ability_id, notes)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Cleave'),
@@ -548,8 +548,8 @@ INSERT INTO pnpo_3_5_dev.feat_prerequisites (feat_id, prerequisite_group_id)
 VALUES ((SELECT id FROM pnpo_3_5_dev.feats WHERE name = 'Combat Expertise'),
         (SELECT id FROM pnpo_3_5_dev.prerequisite_groups WHERE description = 'Combat Expertise: Requires Int 13'));
 
-INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
-VALUES ('Combat Expertise', 'extraordinary', true,
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, activation_type, description, source_category)
+VALUES ('Combat Expertise', 'extraordinary', true, 'free',
         'Trade up to -5 attack penalty for equal dodge bonus to AC (max = BAB)',
         'feat');
 
@@ -571,8 +571,8 @@ VALUES ('Combat Reflexes', 'general',
         'The Combat Reflexes feat does not allow a rogue to use her opportunist ability more than once per round. A fighter may select Combat Reflexes as one of his fighter bonus feats. A monk may select Combat Reflexes as a bonus feat at 2nd level.',
         false, NULL, false);
 
-INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, description, source_category)
-VALUES ('Combat Reflexes', 'extraordinary', false,
+INSERT INTO pnpo_3_5_dev.special_abilities (name, ability_type, is_active, activation_type, description, source_category)
+VALUES ('Combat Reflexes', 'extraordinary', false, 'passive',
         'Extra attacks of opportunity = DEX modifier; can make AoO while flat-footed',
         'feat');
 
